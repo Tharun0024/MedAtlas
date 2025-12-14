@@ -6,6 +6,8 @@ Compares data sources and detects inconsistencies.
 import logging
 from typing import Dict, Any, List, Optional
 from backend.database import insert_discrepancy, log_event
+from backend.database import update_provider_after_validation
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +43,22 @@ class QAAgent:
         
         # Calculate final confidence from confidence scores
         if confidence_scores is None:
-            confidence_scores = validated_data.get("confidence_scores", {})
+            confidence_scores = {}
+
         
         final_confidence = await self.calculate_confidence(confidence_scores)
         
         # Determine status based on confidence
         status = await self.determine_status(final_confidence)
+
+        update_provider_after_validation(original.get("id"),
+    {
+        "validation_status": status,
+        "confidence_score": final_confidence,
+        "validated_data": validated_data,
+        "enriched_data": enriched_data
+    }
+)
         
         # Insert discrepancies into database
         discrepancy_ids = []
@@ -140,15 +152,7 @@ class QAAgent:
         return discrepancies
     
     async def calculate_confidence(self, conf_scores: Dict[str, int]) -> int:
-        """
-        Calculate final confidence score from individual field confidence scores.
-        
-        Args:
-            conf_scores: Dictionary like { "phone": 100, "address": 80, "npi": 90, "website": 60 }
-            
-        Returns:
-            Integer percentage (0-100) representing average confidence
-        """
+     
         if not conf_scores:
             return 0
         
@@ -165,15 +169,7 @@ class QAAgent:
         return int(round(average))
     
     async def determine_status(self, confidence: int) -> str:
-        """
-        Determine validation status based on confidence score.
-        
-        Args:
-            confidence: Confidence score (0-100)
-            
-        Returns:
-            Status string: "validated", "review_recommended", or "needs_review"
-        """
+
         if confidence < 50:
             return "needs_review"
         elif confidence < 80:
@@ -204,3 +200,4 @@ class QAAgent:
             enriched_data=enriched_data,
             confidence_scores=confidence_scores
         )
+

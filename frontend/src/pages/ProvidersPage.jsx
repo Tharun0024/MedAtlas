@@ -67,11 +67,12 @@ function ProvidersPage() {
   }
 
   const getFilteredProviders = () => {
-    if (statusFilter === 'all') {
-      return providers
-    }
-    return providers.filter(p => (p.validation_status || p.status) === statusFilter)
+  if (statusFilter === 'all') {
+    return providers
   }
+  return providers.filter(p => p.status === statusFilter)
+}
+
 
   const filteredProviders = getFilteredProviders()
 

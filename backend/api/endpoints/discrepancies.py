@@ -23,9 +23,7 @@ async def get_discrepancies_endpoint(
     Args:
         provider_id: Optional provider ID filter
         status: Optional status filter ('open', 'resolved', etc.)
-        
-    Returns:
-        List of discrepancies
+
     """
     try:
         discrepancies = get_discrepancies(provider_id=provider_id, status=status)
@@ -43,9 +41,7 @@ async def get_discrepancy(discrepancy_id: int):
     
     Args:
         discrepancy_id: Discrepancy ID
-        
-    Returns:
-        Discrepancy object
+
     """
     from backend.database import get_db_connection
     
@@ -76,9 +72,7 @@ async def update_discrepancy(discrepancy_id: int, status: Optional[str] = None, 
         discrepancy_id: Discrepancy ID
         status: New status
         notes: Optional notes
-        
-    Returns:
-        Updated discrepancy
+
     """
     from backend.database import get_db_connection
     

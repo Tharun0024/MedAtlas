@@ -23,103 +23,50 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 async def validate_all_providers():
     """
     Run validation pipeline for all providers.
-    
-    This endpoint:
-    - Loads all providers from DB
-    - For each provider, triggers pipeline:
-      - DataValidationAgent
-      - EnrichmentAgent
-      - QAAgent
-      - DirectoryAgent
     - Updates provider status (validated/needs_review)
     - Stores discrepancies in discrepancies table
     - Updates confidence score (0-100)
-    
-    Returns:
-        {
-          "status": "success",
-          "validated": <count>,
-          "needs_review": <count>
-        }
     """
     try:
-        import sys
-        from pathlib import Path
-        # Add project root to path
-        project_root = Path(__file__).parent.parent.parent.parent
-        sys.path.insert(0, str(project_root))
+        # import sys
+        # from pathlib import Path
+        # # Adds project root to path
+        # project_root = Path(__file__).parent.parent.parent.parent
+        # sys.path.insert(0, str(project_root))
         
-        from backend.main import run_validation_pipeline
-        
+        from backend.pipeline import run_validation_pipeline
         result = await run_validation_pipeline()
-        
         return result
     
     except Exception as e:
-        logger.error(f"Error running validation pipeline: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+        logger.error(f"Error running validation pipeline: {e}", exc_info=True)
+        # import traceback
+        # logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/validate-provider", response_model=ValidationResult)
+@router.post("/validate-provider")
 async def validate_single_provider(request: ValidationRequest):
     """
-    Validate a single provider through the validation pipeline.
-    
-    Args:
-        request: Validation request with provider_id or npi
-        
-    Returns:
-        Validation result with confidence scores and discrepancies
+    Validate provider(s) using the main validation pipeline.
+    Mini-project version: runs full pipeline to ensure DB is updated.
     """
     try:
-        # Get provider
-        if request.provider_id:
-            provider = get_provider(request.provider_id)
-        elif request.npi:
-            provider = get_provider_by_npi(request.npi)
-        else:
-            raise HTTPException(status_code=400, detail="Either provider_id or npi must be provided")
-        
-        if not provider:
-            raise HTTPException(status_code=404, detail="Provider not found")
-        
-        # Skip validation if already validated and not forcing revalidation
-        if not request.force_revalidate and provider.get("validation_status") == "validated":
-            from backend.database import get_discrepancies
-            discrepancies = get_discrepancies(provider_id=provider["id"])
-            
-            return ValidationResult(
-                provider_id=provider["id"],
-                validated=True,
-                confidence_score=provider.get("confidence_score", 0),
-                discrepancies=discrepancies,
-                validated_data=provider.get("validated_data", {})
-            )
-        
-        # Run validation agent
-        validation_agent = DataValidationAgent()
-        validation_results = await validation_agent.validate_provider(provider)
-        
-        # Get discrepancies
-        from backend.database import get_discrepancies
-        discrepancies = get_discrepancies(provider_id=provider["id"])
-        
-        return ValidationResult(
-            provider_id=provider["id"],
-            validated=validation_results.get("npi_valid", False),
-            confidence_score=sum(validation_results.get("confidence_scores", {}).values()) // 
-                           max(len(validation_results.get("confidence_scores", {})), 1),
-            discrepancies=discrepancies,
-            validated_data=validation_results.get("validated_data", {})
-        )
-    
-    except HTTPException:
-        raise
+        from backend.pipeline import run_validation_pipeline
+
+        # Run pipeline (updates DB)
+        result = await run_validation_pipeline()
+
+        return {
+            "status": "success",
+            "message": "Validation completed",
+            "result": result
+        }
+
     except Exception as e:
-        logger.error(f"Error validating provider: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error validating provider: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Validation failed")
+
 
 
 @router.post("/upload-pdf")

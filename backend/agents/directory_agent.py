@@ -165,8 +165,8 @@ class DirectoryManagementAgent:
             final_provider['confidence_score'] = qa_data.get('confidence_score', 0)
             final_provider['risk_score'] = qa_data.get('risk_score', 0)
             final_provider['validation_status'] = qa_data.get('status', 'pending')
-            final_provider['discrepancy_count'] = qa_data.get('discrepancy_count', 0)
-            final_provider['last_updated'] = qa_data.get('timestamp', '')
+            # final_provider['discrepancy_count'] = qa_data.get('discrepancy_count', 0)
+            # final_provider['last_updated'] = qa_data.get('timestamp', '')
             
             logger.info(f"DirectoryManagementAgent: Successfully finalized provider "
                        f"{provider.get('id', 'unknown')} with confidence "

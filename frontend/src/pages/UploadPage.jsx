@@ -50,7 +50,7 @@ function UploadPage() {
         await validationAPI.uploadPDF(pdfFile)
       }
 
-      setMessage(`Successfully uploaded ${csvResult.provider_count} providers`)
+      setMessage(`Successfully uploaded ${csvResult.uploaded} providers`)
       setMessageType('success')
       
       // Reset form

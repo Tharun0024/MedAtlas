@@ -85,7 +85,12 @@ async def upload_providers(file: UploadFile = File(...)):
             if provider_data["npi"]:
                 existing = get_provider_by_npi(provider_data["npi"])
                 if existing:
+                    # Update existing provider instead of skipping
+                    from backend.database import update_provider
+                    update_provider(existing["id"], provider_data)
+                    inserted += 1
                     continue
+
 
             try:
                 insert_provider(provider_data)

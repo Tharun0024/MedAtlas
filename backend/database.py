@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Any
 from contextlib import contextmanager
 import os
 
+
 # Database path
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "medatlas.db")
 
@@ -212,18 +213,39 @@ def update_provider(provider_id: int, updates: Dict[str, Any]) -> bool:
 
 
 def update_provider_after_validation(provider_id: int, updated_dict: Dict[str, Any]) -> bool:
-    """
-    Update provider after validation pipeline.
-    Ensures DB commits on every update.
-    
-    Args:
-        provider_id: ID of the provider to update
-        updated_dict: Dictionary containing validation results
-        
-    Returns:
-        True if update was successful
-    """
-    return update_provider(provider_id, updated_dict)
+    from datetime import datetime
+    import json
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        update_fields = []
+        values = []
+
+        for key, value in updated_dict.items():
+            # Serialize JSON fields properly
+            if key in ["validated_data", "enriched_data", "raw_data"]:
+                value = json.dumps(value)
+
+            update_fields.append(f"{key} = ?")
+            values.append(value)
+
+        update_fields.append("updated_at = ?")
+        values.append(datetime.now().isoformat())
+
+        values.append(provider_id)
+
+        query = f"""
+            UPDATE providers
+            SET {", ".join(update_fields)}
+            WHERE id = ?
+        """
+
+        cursor.execute(query, values)
+        conn.commit()
+
+        return cursor.rowcount > 0
+
 
 
 def insert_discrepancy(discrepancy_data: Dict[str, Any]) -> int:

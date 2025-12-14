@@ -73,14 +73,13 @@ export const validationAPI = {
   /**
    * Validate a single provider
    */
-  validateProvider: async (providerId, npi = null, forceRevalidate = false) => {
-    const response = await api.post('/validate-provider', {
-      provider_id: providerId,
-      npi: npi,
-      force_revalidate: forceRevalidate,
-    })
-    return response.data
-  },
+  validateProvider: async (providerId, npi = null, force = false) => {
+  return axios.post('/api/validate-provider', {
+    provider_id: providerId,
+    npi: npi,
+    force_revalidate: force
+  })
+},
 
   /**
    * Upload PDF for OCR extraction

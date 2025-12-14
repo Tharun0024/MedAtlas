@@ -30,30 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 async def run_validation_pipeline(limit: int = 10000, offset: int = 0) -> Dict[str, Any]:
-    """
-    Run full validation pipeline for all providers.
-    
-    Pipeline flow for each provider:
-    1. DataValidationAgent.run(provider) → validated_result
-    2. EnrichmentAgent.run(provider, validated_result) → enriched_result
-    3. QAAgent.run(original=provider, validated=validated_result, enriched=enriched_result) → qa_result
-    4. DirectoryManagementAgent.run(provider, validated_result, enriched_result, qa_result) → final_provider
-    5. Save final_provider to database with update_provider_after_validation()
-    6. Insert all discrepancies using insert_discrepancy()
-    
-    Returns:
-        {
-            "status": "success",
-            "validated": count of validated providers,
-            "needs_review": count of providers needing review,
-            "total": total providers processed
-        }
-    
-    Note:
-    - Handles missing fields gracefully (no crashes)
-    - One provider failing does NOT stop the pipeline
-    - All exceptions are logged and tracked
-    """
+# async def run_validation_pipeline(provider_id: int | None = None):
+
     logger.info("=" * 80)
     logger.info("STARTING VALIDATION PIPELINE")
     logger.info("=" * 80)
@@ -83,6 +61,10 @@ async def run_validation_pipeline(limit: int = 10000, offset: int = 0) -> Dict[s
     needs_review_count = 0
     total_processed = 0
     
+    # if provider_id:
+    #     providers = [get_provider_by_id(provider_id)]
+    # else:
+    #     providers = get_providers_to_validate()
     # Process each provider through the pipeline
     for provider in providers:
         provider_id = provider.get("id", "unknown")
@@ -95,18 +77,23 @@ async def run_validation_pipeline(limit: int = 10000, offset: int = 0) -> Dict[s
             logger.debug(f"Provider {provider_id}: Running DataValidationAgent...")
             validated_result = await validation_agent.run(provider)
             
+            validated_data = validated_result.get("validated_data", {})
             # Extract confidence scores for later use
             confidence_scores = validated_result.get("confidence_scores", {})
             
             # ========== STEP 2: ENRICHMENT AGENT ==========
             logger.debug(f"Provider {provider_id}: Running EnrichmentAgent...")
-            enriched_result = await enrichment_agent.run(provider, validated_result)
-            
+            enriched_result = await enrichment_agent.run(provider, validated_result["validated_data"])
+
+
+
+            logger.info("CONFIDENCE DEBUG >>> %s", confidence_scores)
+
             # ========== STEP 3: QA AGENT ==========
             logger.debug(f"Provider {provider_id}: Running QAAgent...")
             qa_result = await qa_agent.run(
                 original=provider,
-                validated_data=validated_result,
+                validated_data=validated_data,
                 enriched_data=enriched_result,
                 confidence_scores=confidence_scores
             )
@@ -119,6 +106,27 @@ async def run_validation_pipeline(limit: int = 10000, offset: int = 0) -> Dict[s
                 enriched_result=enriched_result,
                 qa_result=qa_result
             )
+            # STEP 1: assign provider_update FIRST
+            provider_update = {
+                "confidence_score": final_provider.get("confidence_score"),
+                "risk_score": final_provider.get("risk_score"),
+                "validation_status": final_provider.get("validation_status"),
+                "validated_data": final_provider.get("validated_data"),
+                "enriched_data": final_provider.get("enriched_data"),
+            }
+            ALLOWED_PROVIDER_COLUMNS = {
+                "confidence_score",
+                "risk_score",
+                "validation_status",
+                "validated_data",
+                "enriched_data",
+            }
+
+            provider_update = {
+                k: v for k, v in provider_update.items()
+                if k in ALLOWED_PROVIDER_COLUMNS and v is not None
+            }
+
             
             # ========== STEP 5: PREPARE FINAL RECORD FOR DATABASE ==========
             confidence_score = qa_result.get("confidence_score", 0)
@@ -127,23 +135,33 @@ async def run_validation_pipeline(limit: int = 10000, offset: int = 0) -> Dict[s
             discrepancy_count = qa_result.get("discrepancy_count", 0)
             
             # Determine validation status based on confidence
-            if confidence_score >= 80:
+            if confidence_score >= 60:
                 validation_status = "validated"
                 validated_count += 1
-            elif confidence_score >= 50:
+            elif confidence_score <= 50:
                 validation_status = "needs_review"
                 needs_review_count += 1
             else:
                 validation_status = "review_recommended"
                 needs_review_count += 1
+
+            ALLOWED_PROVIDER_COLUMNS = {
+                    "confidence_score",
+                    "risk_score",
+                    "validation_status",
+                    "validated_data",
+                    "enriched_data"
+                }
+
+            
             
             # Prepare update dict for database
             provider_update = {
                 "validation_status": validation_status,
                 "confidence_score": confidence_score,
                 "risk_score": risk_score,
-                "discrepancy_count": discrepancy_count,
-                "qa_status": qa_status,
+                # "discrepancy_count": discrepancy_count,
+                # "qa_status": qa_status,
                 # Include merged fields from final profile
                 "phone": final_provider.get("phone"),
                 "address_line1": final_provider.get("address_line1"),
@@ -157,6 +175,8 @@ async def run_validation_pipeline(limit: int = 10000, offset: int = 0) -> Dict[s
                 "first_name": final_provider.get("first_name"),
                 "last_name": final_provider.get("last_name"),
             }
+
+
             
             # ========== STEP 6: SAVE TO DATABASE ==========
             logger.debug(f"Provider {provider_id}: Updating database...")
