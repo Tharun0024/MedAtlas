@@ -13,7 +13,7 @@ sys.path.insert(0, str(project_root))
 
 if __name__ == "__main__":
     import uvicorn
-    from backend.api.main import app
+    from MedAtlas.backend.main import app
     
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
 

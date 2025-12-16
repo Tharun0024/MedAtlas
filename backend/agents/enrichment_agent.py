@@ -477,36 +477,51 @@
 
 
 import logging
+from typing import Dict, Any, Optional
+
 from backend.database import log_event
 
 logger = logging.getLogger(__name__)
+
 
 class EnrichmentAgent:
     def __init__(self):
         self.name = "EnrichmentAgent"
 
-    async def run(self, provider: dict, validated_result: dict) -> dict:
+    async def enrich_provider(
+        self,
+        validated_data: Dict[str, Any],
+        pdf_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
-        Minimal enrichment agent.
-        Currently returns empty enrichment safely.
+        Enrich a validated provider record.
+
+        Args:
+            validated_data: Provider data after DataValidationAgent.
+            pdf_path: Optional path to a PDF for OCR/document checks.
+
+        Returns:
+            Enriched provider data (dict).
         """
-        provider_id = provider.get("id")
+        provider_id = validated_data.get("id")
+        npi = validated_data.get("npi")
 
         log_event(
             "enrichment_start",
-            f"Starting enrichment for provider {provider.get('npi')}",
+            f"Starting enrichment for provider {npi}",
             self.name,
-            provider_id
+            provider_id,
         )
 
-        # No enrichment yet (safe placeholder)
-        enriched_data = {}
+        # TODO: plug in real enrichment logic, using pdf_path + OCR if needed.
+        # For now, keep minimal safe behavior: no extra fields, just echo validated_data.
+        enriched_data: Dict[str, Any] = dict(validated_data)
 
         log_event(
             "enrichment_complete",
-            f"Enrichment complete for provider {provider.get('npi')}",
+            f"Enrichment complete for provider {npi}",
             self.name,
-            provider_id
+            provider_id,
         )
 
         return enriched_data

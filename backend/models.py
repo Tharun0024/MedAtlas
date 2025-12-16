@@ -2,9 +2,10 @@
 Pydantic models for MedAtlas API.
 """
 
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, Dict, Any, List
 from datetime import datetime
+from typing import Optional, Dict, Any, List
+
+from pydantic import BaseModel, EmailStr, Field, ValidationError
 
 
 class ProviderBase(BaseModel):
@@ -53,8 +54,9 @@ class Provider(ProviderBase):
 
 class DiscrepancyBase(BaseModel):
     """Base discrepancy model."""
-    provider_id: int
-    field_name: str
+    # Allow NULL / missing from DB
+    provider_id: Optional[int] = None
+    field_name: Optional[str] = None
     csv_value: Optional[str] = None
     api_value: Optional[str] = None
     scraped_value: Optional[str] = None
@@ -77,6 +79,36 @@ class Discrepancy(DiscrepancyBase):
 
     class Config:
         from_attributes = True
+
+
+def make_discrepancy(data: Dict[str, Any]) -> Discrepancy:
+    """
+    Robust discrepancy factory: always returns a Discrepancy, never raises,
+    even if DB rows have NULLs or slightly bad types.
+    """
+    try:
+        return Discrepancy.model_validate(data)
+    except ValidationError:
+        return Discrepancy.model_construct(
+            id=data.get("id"),
+            created_at=data.get("created_at"),
+            provider_id=data.get("provider_id"),
+            field_name=data.get("field_name"),
+            csv_value=data.get("csv_value"),
+            api_value=data.get("api_value"),
+            scraped_value=data.get("scraped_value"),
+            final_value=data.get("final_value"),
+            confidence=data.get("confidence", 0),
+            risk_level=data.get("risk_level") or "medium",
+            status=data.get("status") or "open",
+            notes=data.get("notes"),
+        )
+
+
+class DiscrepancyUpdate(BaseModel):
+    """Partial update payload for a discrepancy."""
+    status: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class ValidationRequest(BaseModel):
@@ -119,4 +151,3 @@ class SummaryStats(BaseModel):
     open_discrepancies: int
     avg_confidence_score: float
     high_risk_providers: int
-

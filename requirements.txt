@@ -3,8 +3,7 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
-# Database
-sqlite3  # Built-in, but listed for clarity
+
 
 # Data processing
 pandas==2.1.3
